@@ -77,6 +77,13 @@ cols <- c(
 
 # Update data frame to include only relevant variables
 fights <- master[,cols]
+
+# for (var in names(fights)) {
+#   print(var)
+#   print(sum(is.na(fights[,var])))
+#   print("")
+# }
+
 fights <- na.omit(fights)
 
 # Subtract Blue height, weight, reach, and age from Red's
@@ -110,6 +117,15 @@ fights$B_finish_dec_ratio <- (fights$B_wins_by_KO_sub + 1) / (fights$B_wins_by_d
 # Calculate overall win loss ratio for each fighter. Add one again to avoid zero division.
 fights$R_wl_ratio <- (fights$R_wins + 1) / (fights$R_losses + 1)
 fights$B_wl_ratio <- (fights$R_wins + 1) / (fights$B_losses + 1)
+
+glm.fit.diff <- glm(red_win ~ height_adv, data = train, family = 'binomial')
+glm.fit.ind <- glm(red_win ~ R_Height_cms + B_Height_cms, data = train, family = 'binomial')
+glm.diff.prob <- predict(glm.fit.diff, data = train, type = 'response')
+glm.ind.prob <- predict(glm.fit.ind, data = train, type = 'response')
+diff.pred <- glm.diff.prob > 0.5
+ind.pred <- glm.ind.prob > 0.5
+mean(diff.pred == train$red_win)
+mean(ind.pred == train$red_win)
 
 
 
