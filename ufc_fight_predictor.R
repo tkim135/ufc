@@ -501,12 +501,101 @@ coef(ridge.lr, s='lambda.min')
 
 ################### Predicting Fighter Odds ######################
 
+# take away red_win column because it would give what we're predicting for away
+train_odds <- select(train, -(red_win))
+test_odds <- select(test, -(red_win))
 
+# baseline RMSE
+print(paste("Baseline RMSE of always predicting sample mean:",
+            sqrt(mean((train_odds$R_odds - mean(train_odds$R_odds)) ^ 2))))
 
+# make the non-numeric weight_class a categorical variable
+train_odds$weight_class <- factor(train_odds$weight_class)
+test_odds$weight_class <- factor(test_odds$weight_class)
 
+fit <- lm(R_odds ~ ., data=train_odds)
+val_error_wo_transforms <-
+  cvFit(fit, data=train_odds, y=train_odds$R_odds, K=10, seed=1)$cv
+val_error_wo_transforms
 
+# divide train data into X and Y
+# will be useful for Ridge and Lasso especially
+X.train_odds <- select(train_odds, -(R_odds))
+Y.train_odds <- train_odds$R_odds
+# cubic transform on all numeric variables
+cubed_X.train_odds <- select(X.train_odds, -(weight_class))^3
+# rename cubed column names to avoid confusion
+new_col_names <- rep(NA, ncol(cubed_X.train_odds))
+for (i in 1:length(new_col_names)) {
+  new_col_names[i] <- paste(colnames(cubed_X.train_odds)[i], '^3', sep='')
+}
+colnames(cubed_X.train_odds) <- new_col_names
+transformed_data_odds <- cbind(Y.train_odds, cubed_X.train_odds)
+fit_transform <- lm(Y.train_odds ~ ., data=transformed_data_odds)
+val_error_w_transforms <-
+  cvFit(fit_transform, data=transformed_data_odds,
+        y=transformed_data_odds$Y.train_odds, K=5, seed=1)$cv
+# error is going way up with cubic transform
+val_error_w_transforms
 
+# shoots way up for interaction variables; on top of that, getting additional
+# error saying invalid rank for using cvFit
+fit_inter <- lm(R_odds ~ . + .:., data=train_odds)
+val_error_inter <-
+  cvFit(fit_inter, data=train_odds, y=train_odds$R_odds, K=5, seed=1)$cv
+val_error_inter
 
+# lambda sequence for ridge and lasso
+# lambdas <- 10^seq(-2,1.5,0.1) # can use default given in cv.glmnet
+
+# Create model matrix with all two way interactions
+form_inter <- R_odds ~ . + .^2
+X.train_odds_matrix_inter <- model.matrix(form_inter, data=train_odds)
+
+# 10 fold cross validation for Ridge with all interactions
+fm.ridge_inter <- cv.glmnet(X.train_odds_matrix_inter,
+                            Y.train_odds, type.measure='mse',
+                            alpha = 0, seed=1)
+# Value of lambda that gives minimum MSE
+fm.ridge_inter$lambda.min
+i <- which(fm.ridge_inter$lambda == fm.ridge_inter$lambda.min)
+rmse_ridge_inter <- sqrt(fm.ridge_inter$cvm[i])
+print(rmse_ridge_inter)
+
+# 10 fold cross validation for Ridge w/o interactions
+form <- R_odds ~ .
+X.train_odds_matrix <- model.matrix(form, data=train_odds)
+fm.ridge <- cv.glmnet(X.train_odds_matrix, Y.train_odds, type.measure='mse',
+                      alpha = 0, seed=1)
+# Value of lambda that gives minimum MSE
+fm.ridge$lambda.min
+i <- which(fm.ridge$lambda == fm.ridge$lambda.min)
+rmse_ridge_wo_inter <- sqrt(fm.ridge$cvm[i])
+print(rmse_ridge_wo_inter)
+
+# 10 fold cross validation for Lasso with all interactions
+fm.lasso_inter <- cv.glmnet(X.train_odds_matrix_inter,
+                            Y.train_odds, type.measure='mse',
+                            alpha = 1, seed=1)
+# Value of lambda that gives minimum MSE
+fm.lasso_inter$lambda.min
+i <- which(fm.lasso_inter$lambda == fm.lasso_inter$lambda.min)
+rmse_lasso_inter <- sqrt(fm.lasso_inter$cvm[i])
+print(rmse_lasso_inter)
+
+# 10 fold cross validation for Lasso w/o interactions
+fm.lasso <- cv.glmnet(X.train_odds_matrix, Y.train_odds, type.measure='mse',
+                      alpha = 0, seed=1)
+# Value of lambda that gives minimum MSE
+fm.lasso$lambda.min
+i <- which(fm.lasso$lambda == fm.lasso$lambda.min)
+rmse_lasso_wo_inter <- sqrt(fm.lasso$cvm[i])
+print(rmse_lasso_wo_inter)
+
+coef(fm.lasso_inter, s='lambda.min')
+coef(fm.lasso, s='lambda.min')
+coef(fm.ridge_inter, s='lambda.min')
+coef(fm.ridge, s='lambda.min')
 
 
 
