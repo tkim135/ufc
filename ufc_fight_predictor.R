@@ -585,7 +585,7 @@ print(rmse_lasso_inter)
 
 # 10 fold cross validation for Lasso w/o interactions
 fm.lasso <- cv.glmnet(X.train_odds_matrix, Y.train_odds, type.measure='mse',
-                      alpha = 0, seed=1)
+                      alpha = 1, seed=1)
 # Value of lambda that gives minimum MSE
 fm.lasso$lambda.min
 i <- which(fm.lasso$lambda == fm.lasso$lambda.min)
